@@ -48,7 +48,7 @@ public class StudentCacheService {
                 log.info("Loading student cache...");
                 long startTime = System.currentTimeMillis();
 
-                List<Student> students = studentRepository.findAll();
+                List<Student> students = studentRepository.findActiveAndNotDeleted();
 
                 for (Student student : students) {
                     indexStudent(student);

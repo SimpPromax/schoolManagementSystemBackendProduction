@@ -231,6 +231,7 @@ public class TransactionController {
     public ResponseEntity<Map<String, Object>> importBankTransactions(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "bankAccount", required = false) String bankAccount,
+            @RequestParam(value = "validationResults", required = false) String validationResults,
             @RequestParam(value = "importType", defaultValue = "CSV") String importType) {
 
         try {
@@ -238,22 +239,99 @@ public class TransactionController {
             request.setFile(file);
             request.setBankAccount(bankAccount);
             request.setImportType(importType);
+            request.setValidationResults(validationResults);
             request.setImportBatchId(java.util.UUID.randomUUID().toString());
 
-            List<BankTransactionResponse> transactions = transactionService.importBankTransactions(request);
+            // Call service method that returns BankTransactionImportResponse
+            BankTransactionImportResponse importResponse = transactionService.importBankTransactions(request);
 
             Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Successfully imported " + transactions.size() + " transactions");
-            response.put("data", transactions);
+
+            if (importResponse.isSuccess()) {
+                // Import successful
+                ImportResult result = importResponse.getResult();
+
+                // Build success message with statistics
+                StringBuilder messageBuilder = new StringBuilder();
+                messageBuilder.append("Successfully imported ")
+                        .append(result.getSavedTransactions())
+                        .append(" transactions");
+
+                if (result.getDuplicatesSkipped() > 0) {
+                    messageBuilder.append(" (")
+                            .append(result.getDuplicatesSkipped())
+                            .append(" duplicates skipped)");
+                }
+
+                if (result.getDuplicatesSkipped() > 0 && result.getSavedTransactions() == 0) {
+                    messageBuilder = new StringBuilder();
+                    messageBuilder.append("No new transactions imported. ")
+                            .append(result.getDuplicatesSkipped())
+                            .append(" duplicate transaction(s) were skipped.");
+                }
+
+                response.put("success", true);
+                response.put("message", messageBuilder.toString());
+
+                // Build response data
+                Map<String, Object> data = new HashMap<>();
+
+                // Keep backward compatibility - main transactions array
+                data.put("transactions", result.getTransactions());
+
+                // Add import statistics
+                Map<String, Object> stats = new HashMap<>();
+                stats.put("totalTransactions", result.getTotalTransactions());
+                stats.put("savedTransactions", result.getSavedTransactions());
+                stats.put("duplicatesSkipped", result.getDuplicatesSkipped());
+
+                if (result.getDuplicatesSkipped() > 0 && result.getDuplicateReferences() != null) {
+                    stats.put("duplicateReferences", result.getDuplicateReferences());
+                }
+
+                data.put("importStats", stats);
+                response.put("data", data);
+
+                // Add warnings if duplicates were found
+                if (result.getDuplicatesSkipped() > 0 && result.getWarningMessage() != null) {
+                    response.put("warning", result.getWarningMessage());
+
+                    // Also include warnings array for frontend
+                    List<String> warnings = new ArrayList<>();
+                    warnings.add(result.getWarningMessage());
+                    response.put("warnings", warnings);
+                }
+
+            } else {
+                // Import failed
+                response.put("success", false);
+                response.put("message", importResponse.getMessage());
+
+                // Add any warnings from service
+                if (importResponse.getWarnings() != null && !importResponse.getWarnings().isEmpty()) {
+                    response.put("warnings", importResponse.getWarnings());
+                }
+            }
+
             response.put("timestamp", LocalDateTime.now().toString());
 
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
+            log.error("❌ Import failed", e);
+
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
-            errorResponse.put("message", "Failed to import transactions: " + e.getMessage());
+
+            // Check if it's a duplicate-related error
+            String errorMessage = e.getMessage();
+            if (errorMessage != null && errorMessage.contains("Duplicate")) {
+                errorResponse.put("message", "Duplicate transactions detected. " + errorMessage);
+                errorResponse.put("warning", "Some transactions may already exist in the database.");
+            } else {
+                errorResponse.put("message", "Failed to import transactions: " + errorMessage);
+            }
+
             errorResponse.put("timestamp", LocalDateTime.now().toString());
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);

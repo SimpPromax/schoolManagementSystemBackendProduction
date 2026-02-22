@@ -262,8 +262,11 @@ public class TermFeeService {
             log.info("📅 Term Dates: {} to {} | Fee Due: {}",
                     term.getStartDate(), term.getEndDate(), term.getFeeDueDate());
 
-            // Get active students with null safety
-            List<Student> activeStudents = studentRepository.findByStatus(Student.StudentStatus.ACTIVE);
+            // ========== ONLY CHANGE THIS LINE ==========
+            // OLD: List<Student> activeStudents = studentRepository.findByStatus(Student.StudentStatus.ACTIVE);
+            // NEW: Use the new method that excludes deleted students
+            List<Student> activeStudents = studentRepository.findActiveAndNotDeleted();
+            // ===========================================
 
             if (activeStudents == null || activeStudents.isEmpty()) {
                 log.warn("⚠️ No active students found to bill");
@@ -276,7 +279,7 @@ public class TermFeeService {
                         .build();
             }
 
-            log.info("👥 Found {} active students", activeStudents.size());
+            log.info("👥 Found {} active and not deleted students", activeStudents.size());
 
             // Count students with missing grades
             long studentsWithoutGrade = activeStudents.stream()
@@ -287,7 +290,7 @@ public class TermFeeService {
                 log.warn("⚠️ {} students have no grade assigned and will be skipped", studentsWithoutGrade);
             }
 
-            // Process billing
+            // Process billing (rest of your existing code remains the same)
             AutoBillingResult result = processAutoBilling(term, activeStudents);
 
             log.info("✅ ========== AUTO-BILLING COMPLETED ==========");

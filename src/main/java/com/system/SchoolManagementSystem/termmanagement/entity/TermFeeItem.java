@@ -58,6 +58,7 @@ public class TermFeeItem {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private FeeStatus status = FeeStatus.PENDING;
 
     @Column(name = "due_date", nullable = false)

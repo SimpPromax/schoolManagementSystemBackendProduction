@@ -95,7 +95,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         // Allow all origins for development (restrict in production)
-        configuration.setAllowedOrigins(Arrays.asList("*"));
+        configuration.setAllowedOrigins(List.of("*"));
 
         // Allowed HTTP methods
         configuration.setAllowedMethods(Arrays.asList(

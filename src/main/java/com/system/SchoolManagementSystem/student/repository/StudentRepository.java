@@ -3,15 +3,14 @@ package com.system.SchoolManagementSystem.student.repository;
 import com.system.SchoolManagementSystem.student.dto.StudentFeeSummaryDTO;
 import com.system.SchoolManagementSystem.student.dto.GradeStatisticsDTO;
 import com.system.SchoolManagementSystem.student.entity.Student;
-import com.system.SchoolManagementSystem.termmanagement.entity.StudentTermAssignment;
-import com.system.SchoolManagementSystem.termmanagement.entity.TermFeeItem;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;  // ✅ CORRECT - Change this import
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
 
 import java.time.LocalDate;
 import java.util.List;
@@ -364,22 +363,36 @@ public interface StudentRepository extends JpaRepository<Student, Long>, JpaSpec
             "ORDER BY s.grade, s.fullName")
     List<StudentFeeSummaryDTO> findAllStudentsWithFeeSummary();
 
+    // ========== AUTO-BILLING SPECIFIC METHOD ==========
+
+    /**
+     * Find active students that are not deleted - for auto-billing
+     * This excludes soft-deleted students and non-active students
+     */
+    @Query("SELECT s FROM Student s WHERE s.status = 'ACTIVE' AND s.deleted = false")
+    List<Student> findActiveAndNotDeleted();
+
     // ========== GRADE QUERIES ==========
 
-    // VERY SIMPLE VERSION
     @Query("SELECT DISTINCT s.grade FROM Student s " +
             "WHERE s.grade IS NOT NULL " +
-            "AND s.grade != '' " +
-            "AND s.status = 'ACTIVE' " +
-            "AND s.deleted = false " +
+            "AND TRIM(s.grade) != '' " +  // Use TRIM to handle whitespace-only grades
             "ORDER BY s.grade")
     List<String> findDistinctGrades();
 
-    // Alternative simpler query if you have consistent grade format:
-    @Query("SELECT DISTINCT s.grade FROM Student s " +
-            "WHERE s.grade IS NOT NULL AND s.grade != '' " +
-            "AND s.status = 'ACTIVE' " +
+    // For paginated search
+    @Query("SELECT s FROM Student s WHERE " +
+            "LOWER(s.fullName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+            "LOWER(s.studentId) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+            "LOWER(s.grade) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+            "LOWER(s.email) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+            "LOWER(s.phone) LIKE LOWER(CONCAT('%', :query, '%')) " +
             "AND s.deleted = false " +
-            "ORDER BY s.grade")
-    List<String> findDistinctGradesSimple();
+            "ORDER BY s.fullName")
+    Page<Student> searchStudentsPaginated(@Param("query") String query, Pageable pageable);  // ✅ Fixed
+
+    // For paginated list of all active students
+    @Query("SELECT s FROM Student s WHERE s.deleted = false ORDER BY s.fullName")
+    Page<Student> findByDeletedFalse(Pageable pageable);  // ✅ Fixed
+
 }

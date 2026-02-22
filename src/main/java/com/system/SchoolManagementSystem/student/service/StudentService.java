@@ -6,6 +6,8 @@ import com.system.SchoolManagementSystem.student.repository.*;
 import com.system.SchoolManagementSystem.transaction.entity.PaymentTransaction;
 import com.system.SchoolManagementSystem.transaction.repository.PaymentTransactionRepository;
 import com.system.SchoolManagementSystem.student.util.FileValidator;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
@@ -1697,5 +1699,43 @@ public class StudentService {
         }
 
         return null;
+    }
+
+    /**
+     * Find all active students with pagination
+     */
+    @Transactional(readOnly = true)
+    public Page<Student> findByDeletedFalse(Pageable pageable) {
+        log.info("[STUDENT-SERVICE] [FIND-BY-DELETED-FALSE] Fetching page {} of students", pageable.getPageNumber());
+        try {
+            Page<Student> result = studentRepository.findByDeletedFalse(pageable);
+            log.info("[STUDENT-SERVICE] [FIND-BY-DELETED-FALSE] Found {} students on page {}",
+                    result.getNumberOfElements(), pageable.getPageNumber());
+            return result;
+        } catch (Exception e) {
+            log.error("[STUDENT-SERVICE] [FIND-BY-DELETED-FALSE] ERROR: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to fetch students: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Search students with pagination
+     */
+    @Transactional(readOnly = true)
+    public Page<Student> searchStudentsPaginated(String query, Pageable pageable) {
+        log.info("[STUDENT-SERVICE] [SEARCH-STUDENTS-PAGINATED] Searching for: '{}', page: {}",
+                query, pageable.getPageNumber());
+        try {
+            Page<Student> result = studentRepository.searchStudentsPaginated(query, pageable);
+            log.info("[STUDENT-SERVICE] [SEARCH-STUDENTS-PAGINATED] Found {} students on page {}",
+                    result.getNumberOfElements(), pageable.getPageNumber());
+            return result;
+        } catch (Exception e) {
+            log.error("[STUDENT-SERVICE] [SEARCH-STUDENTS-PAGINATED] ERROR for query '{}': {}",
+                    query, e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to search students: " + e.getMessage(), e);
+        }
     }
 }

@@ -9,4 +9,5 @@ public class BankTransactionImportRequest {
     private String importType; // CSV, EXCEL, PDF
     private String bankAccount;
     private String importBatchId;
+    private String validationResults; // NEW: JSON string of validation results from frontend
 }

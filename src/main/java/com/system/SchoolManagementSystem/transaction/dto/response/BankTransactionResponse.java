@@ -25,6 +25,9 @@ public class BankTransactionResponse {
     private TransactionStatus status;
     private PaymentMethod paymentMethod;
 
+    // ✅ ADD THIS: Notes field for validation issues
+    private String notes;
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime importedAt;
 

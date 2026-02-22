@@ -8,6 +8,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/students")
@@ -71,6 +76,71 @@ public class StudentProfileController {
         log.info("[CONTROLLER] [GET-STUDENT-BY-STUDENT-ID] [{}] Completed - Found student: {} (ID: {})",
                 requestId, student.getFullName(), student.getId());
         return ResponseEntity.ok(student);
+    }
+
+    /**
+     * Search students with pagination for dropdowns
+     */
+    @GetMapping("/search/paginated")
+    public ResponseEntity<Map<String, Object>> searchStudentsPaginated(
+            @RequestParam(required = false) String query,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        String requestId = generateRequestId();
+        log.info("[CONTROLLER] [SEARCH-STUDENTS-PAGINATED] [{}] Started - query: '{}', page: {}, size: {}",
+                requestId, query, page, size);
+
+        try {
+            // Create pageable with sorting
+            Pageable pageable = PageRequest.of(page, size, Sort.by("fullName").ascending());
+
+            Page<Student> studentPage;
+
+            if (query == null || query.trim().isEmpty()) {
+                // Use service method, not repository directly
+                studentPage = studentService.findByDeletedFalse(pageable);
+            } else {
+                // Use service method, not repository directly
+                String searchQuery = "%" + query.toLowerCase() + "%";
+                studentPage = studentService.searchStudentsPaginated(searchQuery, pageable);
+            }
+
+            // Convert to StudentDropdownDTO
+            List<StudentDropdownDTO> studentDTOs = studentPage.getContent().stream()
+                    .map(student -> new StudentDropdownDTO(
+                            student.getId(),
+                            student.getStudentId(),
+                            student.getFullName(),
+                            student.getGrade(),
+                            student.getPhone(),
+                            student.getEmail()
+                    ))
+                    .collect(Collectors.toList());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("content", studentDTOs);
+            response.put("currentPage", studentPage.getNumber());
+            response.put("totalItems", studentPage.getTotalElements());
+            response.put("totalPages", studentPage.getTotalPages());
+            response.put("hasNext", studentPage.hasNext());
+            response.put("hasPrevious", studentPage.hasPrevious());
+
+            log.info("[CONTROLLER] [SEARCH-STUDENTS-PAGINATED] [{}] Completed - Found {} students, total pages: {}",
+                    requestId, studentDTOs.size(), studentPage.getTotalPages());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("[CONTROLLER] [SEARCH-STUDENTS-PAGINATED] [{}] ERROR: {}", requestId, e.getMessage(), e);
+
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to search students");
+            errorResponse.put("message", e.getMessage());
+            errorResponse.put("status", 500);
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
 
     /**

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface BankTransactionRepository extends JpaRepository<BankTransaction, Long> {
@@ -89,4 +90,13 @@ public interface BankTransactionRepository extends JpaRepository<BankTransaction
     // Method to get bank transactions for a specific student with any status
     @Query("SELECT bt FROM BankTransaction bt WHERE bt.student.id = :studentId")
     List<BankTransaction> findAllByStudentId(@Param("studentId") Long studentId);
+
+    // In BankTransactionRepository.java, add these methods:
+
+    // Single reference check
+    boolean existsByBankReference(String bankReference);
+
+    // Batch reference check - OPTIMIZED
+    @Query("SELECT b.bankReference FROM BankTransaction b WHERE b.bankReference IN :references")
+    Set<String> findExistingReferences(@Param("references") List<String> references);
 }
