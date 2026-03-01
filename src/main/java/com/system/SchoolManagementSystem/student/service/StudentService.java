@@ -23,10 +23,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -199,7 +196,7 @@ public class StudentService {
     }
 
     /**
-     * Update student with optional fee updates
+     * Update student with optional fee updates and related entities
      */
     @Transactional
     public StudentDTO updateStudent(Long id, StudentUpdateDTO updateDTO) {
@@ -239,12 +236,68 @@ public class StudentService {
                 }
             }
 
+            // ========== SYNC RELATED ENTITIES ==========
+            if (updateDTO.getFamilyMembers() != null) {
+                syncFamilyMembers(student, updateDTO.getFamilyMembers());
+            }
+
+            if (updateDTO.getMedicalRecords() != null) {
+                syncMedicalRecords(student, updateDTO.getMedicalRecords());
+            }
+
+            if (updateDTO.getAchievements() != null) {
+                syncAchievements(student, updateDTO.getAchievements());
+            }
+
+            // CRITICAL: Check both interests and clubs/hobbies for backward compatibility
+            List<StudentInterestDTO> interestsToSync = new ArrayList<>();
+
+            // First try to get from interests field
+            if (updateDTO.getInterests() != null && !updateDTO.getInterests().isEmpty()) {
+                interestsToSync.addAll(updateDTO.getInterests());
+                log.info("Using interests from DTO interests field: {} items", updateDTO.getInterests().size());
+            }
+            // If no interests, try to build from clubs and hobbies (for backward compatibility)
+            else {
+                if (updateDTO.getClubs() != null && !updateDTO.getClubs().isEmpty()) {
+                    for (String club : updateDTO.getClubs()) {
+                        StudentInterestDTO interestDTO = new StudentInterestDTO();
+                        interestDTO.setInterestType(StudentInterest.InterestType.CLUB);
+                        interestDTO.setName(club);
+                        interestDTO.setId(null); // New interest
+                        interestsToSync.add(interestDTO);
+                    }
+                    log.info("Added {} clubs from clubs field", updateDTO.getClubs().size());
+                }
+
+                if (updateDTO.getHobbies() != null && !updateDTO.getHobbies().isEmpty()) {
+                    for (String hobby : updateDTO.getHobbies()) {
+                        StudentInterestDTO interestDTO = new StudentInterestDTO();
+                        interestDTO.setInterestType(StudentInterest.InterestType.HOBBY);
+                        interestDTO.setName(hobby);
+                        interestDTO.setId(null); // New interest
+                        interestsToSync.add(interestDTO);
+                    }
+                    log.info("Added {} hobbies from hobbies field", updateDTO.getHobbies().size());
+                }
+            }
+
+            // Sync interests
+            if (!interestsToSync.isEmpty()) {
+                syncInterests(student, interestsToSync);
+            } else {
+                // If no interests at all, clear existing ones
+                syncInterests(student, new ArrayList<>());
+            }
+
             Student updatedStudent = studentRepository.save(student);
             log.info("[STUDENT-SERVICE] [UPDATE-STUDENT] Student updated in database");
+
             StudentDTO result = convertToDTOWithFeeInfo(updatedStudent);
             log.info("[STUDENT-SERVICE] [UPDATE-STUDENT] Completed successfully for student: {} (ID: {})",
                     result.getFullName(), result.getId());
             return result;
+
         } catch (ResponseStatusException e) {
             log.error("[STUDENT-SERVICE] [UPDATE-STUDENT] NOT FOUND - Student with ID {} not found", id);
             throw e;
@@ -1043,6 +1096,290 @@ public class StudentService {
         }
     }
 
+    // ========== SYNC METHODS FOR RELATED ENTITIES ==========
+
+    /**
+     * Sync family members from DTO to student entity
+     */
+    private void syncFamilyMembers(Student student, List<FamilyMemberDTO> familyMemberDTOs) {
+        log.debug("[STUDENT-SERVICE] [SYNC-FAMILY-MEMBERS] Syncing family members for student ID: {}", student.getId());
+
+        if (familyMemberDTOs == null) return;
+
+        try {
+            Set<FamilyMember> existingMembers = student.getFamilyMembers();
+            if (existingMembers == null) {
+                existingMembers = new HashSet<>();
+                student.setFamilyMembers(existingMembers);
+            }
+
+            Map<Long, FamilyMember> existingMap = existingMembers.stream()
+                    .filter(m -> m.getId() != null)
+                    .collect(Collectors.toMap(FamilyMember::getId, m -> m));
+
+            Set<Long> seenIds = new HashSet<>();
+
+            for (FamilyMemberDTO dto : familyMemberDTOs) {
+                if (dto.getId() != null && existingMap.containsKey(dto.getId())) {
+                    // Update existing family member
+                    FamilyMember member = existingMap.get(dto.getId());
+                    member.setRelation(dto.getRelation());
+                    member.setFullName(dto.getFullName());
+                    member.setOccupation(dto.getOccupation());
+                    member.setPhone(dto.getPhone());
+                    member.setEmail(dto.getEmail());
+                    member.setIsPrimaryContact(dto.getIsPrimaryContact());
+                    member.setIsEmergencyContact(dto.getIsEmergencyContact());
+                    seenIds.add(dto.getId());
+                    log.trace("[STUDENT-SERVICE] [SYNC-FAMILY-MEMBERS] Updated family member ID: {}", dto.getId());
+                } else {
+                    // Create new family member
+                    FamilyMember newMember = FamilyMember.builder()
+                            .student(student)
+                            .relation(dto.getRelation())
+                            .fullName(dto.getFullName())
+                            .occupation(dto.getOccupation())
+                            .phone(dto.getPhone())
+                            .email(dto.getEmail())
+                            .isPrimaryContact(dto.getIsPrimaryContact())
+                            .isEmergencyContact(dto.getIsEmergencyContact())
+                            .build();
+                    existingMembers.add(newMember);
+                    log.trace("[STUDENT-SERVICE] [SYNC-FAMILY-MEMBERS] Added new family member: {}", dto.getFullName());
+                }
+            }
+
+            // Remove family members that are no longer present
+            existingMembers.removeIf(member -> member.getId() != null && !seenIds.contains(member.getId()));
+
+            log.info("[STUDENT-SERVICE] [SYNC-FAMILY-MEMBERS] Synced {} family members for student ID: {}",
+                    existingMembers.size(), student.getId());
+
+        } catch (Exception e) {
+            log.error("[STUDENT-SERVICE] [SYNC-FAMILY-MEMBERS] Error: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to sync family members: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Sync medical records from DTO to student entity
+     */
+    private void syncMedicalRecords(Student student, List<MedicalRecordDTO> medicalRecordDTOs) {
+        log.debug("[STUDENT-SERVICE] [SYNC-MEDICAL-RECORDS] Syncing medical records for student ID: {}", student.getId());
+
+        if (medicalRecordDTOs == null) return;
+
+        try {
+            Set<MedicalRecord> existingRecords = student.getMedicalRecords();
+            if (existingRecords == null) {
+                existingRecords = new HashSet<>();
+                student.setMedicalRecords(existingRecords);
+            }
+
+            Map<Long, MedicalRecord> existingMap = existingRecords.stream()
+                    .filter(r -> r.getId() != null)
+                    .collect(Collectors.toMap(MedicalRecord::getId, r -> r));
+
+            Set<Long> seenIds = new HashSet<>();
+
+            for (MedicalRecordDTO dto : medicalRecordDTOs) {
+                if (dto.getId() != null && existingMap.containsKey(dto.getId())) {
+                    // Update existing medical record
+                    MedicalRecord record = existingMap.get(dto.getId());
+                    record.setRecordType(dto.getRecordType());
+                    record.setName(dto.getName());
+                    record.setSeverity(dto.getSeverity());
+                    record.setNotes(dto.getNotes());
+                    record.setFrequency(dto.getFrequency());
+                    record.setPrescribedBy(dto.getPrescribedBy());
+                    seenIds.add(dto.getId());
+                    log.trace("[STUDENT-SERVICE] [SYNC-MEDICAL-RECORDS] Updated medical record ID: {}", dto.getId());
+                } else {
+                    // Create new medical record
+                    MedicalRecord newRecord = MedicalRecord.builder()
+                            .student(student)
+                            .recordType(dto.getRecordType())
+                            .name(dto.getName())
+                            .severity(dto.getSeverity())
+                            .notes(dto.getNotes())
+                            .frequency(dto.getFrequency())
+                            .prescribedBy(dto.getPrescribedBy())
+                            .build();
+                    existingRecords.add(newRecord);
+                    log.trace("[STUDENT-SERVICE] [SYNC-MEDICAL-RECORDS] Added new medical record: {}", dto.getName());
+                }
+            }
+
+            // Remove medical records that are no longer present
+            existingRecords.removeIf(record -> record.getId() != null && !seenIds.contains(record.getId()));
+
+            log.info("[STUDENT-SERVICE] [SYNC-MEDICAL-RECORDS] Synced {} medical records for student ID: {}",
+                    existingRecords.size(), student.getId());
+
+        } catch (Exception e) {
+            log.error("[STUDENT-SERVICE] [SYNC-MEDICAL-RECORDS] Error: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to sync medical records: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Sync achievements from DTO to student entity
+     */
+    private void syncAchievements(Student student, List<AchievementDTO> achievementDTOs) {
+        log.debug("[STUDENT-SERVICE] [SYNC-ACHIEVEMENTS] Syncing achievements for student ID: {}", student.getId());
+
+        if (achievementDTOs == null) return;
+
+        try {
+            Set<Achievement> existingAchievements = student.getAchievements();
+            if (existingAchievements == null) {
+                existingAchievements = new HashSet<>();
+                student.setAchievements(existingAchievements);
+            }
+
+            Map<Long, Achievement> existingMap = existingAchievements.stream()
+                    .filter(a -> a.getId() != null)
+                    .collect(Collectors.toMap(Achievement::getId, a -> a));
+
+            Set<Long> seenIds = new HashSet<>();
+
+            for (AchievementDTO dto : achievementDTOs) {
+                if (dto.getId() != null && existingMap.containsKey(dto.getId())) {
+                    // Update existing achievement
+                    Achievement achievement = existingMap.get(dto.getId());
+                    achievement.setTitle(dto.getTitle());
+                    achievement.setType(dto.getType());
+                    achievement.setLevel(dto.getLevel());
+                    achievement.setYear(dto.getYear());
+                    achievement.setDescription(dto.getDescription());
+                    achievement.setAward(dto.getAward());
+                    achievement.setCertificatePath(dto.getCertificatePath());
+                    seenIds.add(dto.getId());
+                    log.trace("[STUDENT-SERVICE] [SYNC-ACHIEVEMENTS] Updated achievement ID: {}", dto.getId());
+                } else {
+                    // Create new achievement
+                    Achievement newAchievement = Achievement.builder()
+                            .student(student)
+                            .title(dto.getTitle())
+                            .type(dto.getType())
+                            .level(dto.getLevel())
+                            .year(dto.getYear())
+                            .description(dto.getDescription())
+                            .award(dto.getAward())
+                            .certificatePath(dto.getCertificatePath())
+                            .build();
+                    existingAchievements.add(newAchievement);
+                    log.trace("[STUDENT-SERVICE] [SYNC-ACHIEVEMENTS] Added new achievement: {}", dto.getTitle());
+                }
+            }
+
+            // Remove achievements that are no longer present
+            existingAchievements.removeIf(achievement ->
+                    achievement.getId() != null && !seenIds.contains(achievement.getId()));
+
+            log.info("[STUDENT-SERVICE] [SYNC-ACHIEVEMENTS] Synced {} achievements for student ID: {}",
+                    existingAchievements.size(), student.getId());
+
+        } catch (Exception e) {
+            log.error("[STUDENT-SERVICE] [SYNC-ACHIEVEMENTS] Error: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to sync achievements: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Sync interests (clubs/hobbies) from DTO to student entity
+     */
+    @Transactional
+    private void syncInterests(Student student, List<StudentInterestDTO> interestDTOs) {
+        log.info("========== SYNC INTERESTS START ==========");
+        log.info("Student ID: {}", student.getId());
+        log.info("Received {} interests", interestDTOs != null ? interestDTOs.size() : 0);
+
+        if (interestDTOs == null || interestDTOs.isEmpty()) {
+            // If no interests in DTO, delete all existing interests
+            Set<StudentInterest> existingInterests = student.getInterests();
+            if (existingInterests != null && !existingInterests.isEmpty()) {
+                studentInterestRepository.deleteAll(existingInterests);
+                existingInterests.clear();
+                log.info("Deleted all existing interests - no interests in DTO");
+            }
+            log.info("========== SYNC INTERESTS END (no interests) ==========");
+            return;
+        }
+
+        // Log each incoming interest
+        for (int i = 0; i < interestDTOs.size(); i++) {
+            StudentInterestDTO dto = interestDTOs.get(i);
+            log.info("INCOMING [{}] - Type: {}, Name: {}, ID: {}",
+                    i, dto.getInterestType(), dto.getName(), dto.getId());
+        }
+
+        // Get existing interests
+        Set<StudentInterest> existingInterests = student.getInterests();
+        if (existingInterests == null) {
+            existingInterests = new HashSet<>();
+            student.setInterests(existingInterests);
+        } else {
+            // Log existing interests before deletion
+            log.info("Existing interests count before sync: {}", existingInterests.size());
+            for (StudentInterest interest : existingInterests) {
+                log.info("EXISTING - ID: {}, Type: {}, Name: {}",
+                        interest.getId(), interest.getInterestType(), interest.getName());
+            }
+
+            // Delete all existing interests from database
+            if (!existingInterests.isEmpty()) {
+                studentInterestRepository.deleteAll(existingInterests);
+                existingInterests.clear();
+                log.info("Deleted all existing interests");
+            }
+        }
+
+        // Use a List instead of Set temporarily to preserve all items
+        List<StudentInterest> interestsToAdd = new ArrayList<>();
+
+        // Create ALL new interests from the DTOs
+        for (StudentInterestDTO dto : interestDTOs) {
+            StudentInterest newInterest = StudentInterest.builder()
+                    .student(student)
+                    .interestType(dto.getInterestType())
+                    .name(dto.getName())
+                    .description(dto.getDescription() != null ? dto.getDescription() : "")
+                    .build();
+
+            // Save to get ID
+            StudentInterest savedInterest = studentInterestRepository.save(newInterest);
+            interestsToAdd.add(savedInterest);
+
+            log.info("SAVED - Type: {}, Name: {}, New ID: {}",
+                    dto.getInterestType(), dto.getName(), savedInterest.getId());
+        }
+
+        // Now add all saved interests to the Set
+        // With our new equals/hashCode based on type+name, duplicates won't be added
+        for (StudentInterest interest : interestsToAdd) {
+            boolean added = existingInterests.add(interest);
+            if (added) {
+                log.info("ADDED to Set - ID: {}, Type: {}, Name: {}",
+                        interest.getId(), interest.getInterestType(), interest.getName());
+            } else {
+                log.warn("DUPLICATE not added to Set - ID: {}, Type: {}, Name: {}",
+                        interest.getId(), interest.getInterestType(), interest.getName());
+            }
+        }
+
+        log.info("Final interests after sync: {}", existingInterests.size());
+        for (StudentInterest interest : existingInterests) {
+            log.info("FINAL - ID: {}, Type: {}, Name: {}",
+                    interest.getId(), interest.getInterestType(), interest.getName());
+        }
+
+        log.info("========== SYNC INTERESTS END ==========");
+    }
+
     // ========== FEE-SPECIFIC METHODS ==========
 
     @Transactional
@@ -1337,28 +1674,35 @@ public class StudentService {
             dto.setOtherFees(student.getOtherFees());
             dto.setFeeStatus(student.getFeeStatus());
 
+            // Convert collections
             if (student.getFamilyMembers() != null && !student.getFamilyMembers().isEmpty()) {
                 List<FamilyMemberDTO> familyMemberDTOs = student.getFamilyMembers().stream()
                         .map(this::convertToFamilyMemberDTO)
                         .collect(Collectors.toList());
                 dto.setFamilyMembers(familyMemberDTOs);
             }
+
             if (student.getMedicalRecords() != null && !student.getMedicalRecords().isEmpty()) {
                 List<MedicalRecordDTO> medicalRecordDTOs = student.getMedicalRecords().stream()
                         .map(this::convertToMedicalRecordDTO)
                         .collect(Collectors.toList());
                 dto.setMedicalRecords(medicalRecordDTOs);
             }
+
             if (student.getAchievements() != null && !student.getAchievements().isEmpty()) {
                 List<AchievementDTO> achievementDTOs = student.getAchievements().stream()
                         .map(this::convertToAchievementDTO)
                         .collect(Collectors.toList());
                 dto.setAchievements(achievementDTOs);
             }
+
             if (student.getInterests() != null && !student.getInterests().isEmpty()) {
                 List<StudentInterestDTO> interestDTOs = student.getInterests().stream()
                         .map(this::convertToInterestDTO)
                         .collect(Collectors.toList());
+                dto.setInterests(interestDTOs);
+
+                // For backward compatibility, also set clubs and hobbies
                 dto.setClubs(interestDTOs.stream()
                         .filter(i -> i.getInterestType() == StudentInterest.InterestType.CLUB)
                         .map(StudentInterestDTO::getName)
@@ -1368,6 +1712,7 @@ public class StudentService {
                         .map(StudentInterestDTO::getName)
                         .collect(Collectors.toList()));
             }
+
             log.debug("[STUDENT-SERVICE] [CONVERT-TO-DTO] Conversion completed for student: {}", student.getFullName());
             return dto;
         } catch (Exception e) {
@@ -1637,7 +1982,7 @@ public class StudentService {
         try {
             long startTime = System.currentTimeMillis();
 
-            // Call repository method (this is where the query executes)
+            // Call repository method
             List<String> grades = studentRepository.findDistinctGrades();
 
             if (grades == null) {

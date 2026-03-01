@@ -63,11 +63,11 @@ public class StudentDTO {
     private Double transportFee;
     private Student.FeeStatus transportFeeStatus;
 
-    // ========== FEE INFORMATION (NEW) ==========
-    private Double totalFee;          // Total fee for current academic year
-    private Double paidAmount;        // Amount paid so far
-    private Double pendingAmount;     // Amount pending
-    private Student.FeeStatus feeStatus; // Overall fee status
+    // ========== FEE INFORMATION ==========
+    private Double totalFee;
+    private Double paidAmount;
+    private Double pendingAmount;
+    private Student.FeeStatus feeStatus;
 
     // Optional: Fee details breakdown
     private Double tuitionFee;
@@ -81,7 +81,10 @@ public class StudentDTO {
     private List<MedicalRecordDTO> medicalRecords;
     private List<AchievementDTO> achievements;
 
-    // Clubs & hobbies as arrays
+    // ========== NEW: Add interests field ==========
+    private List<StudentInterestDTO> interests;
+
+    // Clubs & hobbies as arrays (for backward compatibility)
     private List<String> clubs;
     private List<String> hobbies;
 

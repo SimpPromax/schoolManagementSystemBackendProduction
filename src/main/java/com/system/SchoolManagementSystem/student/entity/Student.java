@@ -22,8 +22,8 @@ import java.util.stream.Stream;
 @AllArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString(exclude = {"familyMembers", "medicalRecords", "achievements", "interests", "termAssignments"})
-@SQLDelete(sql = "UPDATE students SET deleted = true WHERE id = ?") // Soft delete
-@Where(clause = "deleted = false") // Automatically filter out deleted records
+@SQLDelete(sql = "UPDATE students SET deleted = true WHERE id = ?")
+@Where(clause = "deleted = false")
 public class Student {
 
     @Id
@@ -139,7 +139,7 @@ public class Student {
     @Column(name = "transport_fee_status")
     private FeeStatus transportFeeStatus = FeeStatus.PENDING;
 
-    // ========== FEE INFORMATION (UPDATED FOR TERM INTEGRATION) ==========
+    // Fee Information
     @Column(name = "total_fee")
     private Double totalFee;
 
@@ -172,13 +172,12 @@ public class Student {
 
     @Column(name = "last_fee_update")
     private LocalDateTime lastFeeUpdate;
-    // ===========================================
 
     // Status
     @Enumerated(EnumType.STRING)
     private StudentStatus status = StudentStatus.ACTIVE;
 
-    // ========== SOFT DELETE FIELD ==========
+    // Soft delete field
     @Column(name = "deleted", nullable = false)
     @Builder.Default
     private boolean deleted = false;
@@ -189,7 +188,7 @@ public class Student {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // ========== EXISTING RELATIONSHIPS ==========
+    // Relationships
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonIgnore
     @Builder.Default
@@ -205,18 +204,20 @@ public class Student {
     @Builder.Default
     private Set<Achievement> achievements = new HashSet<>();
 
-    @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    // UPDATED: Interests relationship with proper cascade
+    @OneToMany(mappedBy = "student",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY)
     @JsonIgnore
     @Builder.Default
     private Set<StudentInterest> interests = new HashSet<>();
 
-    // ========== NEW: TERM FEE RELATIONSHIPS ==========
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
     @Builder.Default
     private Set<StudentTermAssignment> termAssignments = new HashSet<>();
 
-    // ========== NEW: MANUAL DUE DATE FLAG ==========
     @Transient
     @Builder.Default
     private boolean manualDueDateUpdate = false;
@@ -234,39 +235,28 @@ public class Student {
         updatedAt = LocalDateTime.now();
         lastFeeUpdate = LocalDateTime.now();
 
-        // Skip automatic due date calculation if it was manually set
         if (!manualDueDateUpdate) {
             calculateFeeDetails();
         } else {
-            // Reset the flag after processing
             manualDueDateUpdate = false;
-            // Still calculate other fee details but preserve due date
             calculateFeeDetailsWithoutDueDate();
         }
     }
 
-    /**
-     * Calculate fee details WITHOUT updating due date
-     * Used when due date is manually set
-     */
     private void calculateFeeDetailsWithoutDueDate() {
         try {
             LocalDate preservedDueDate = this.feeDueDate;
 
-            // Calculate totals but preserve due date
             if (Hibernate.isInitialized(this.termAssignments) && this.termAssignments != null) {
-                // Calculate totals from term assignments
                 double totalTermFee = getTotalFeeAmount();
                 double totalPaid = getTotalPaidAmount();
                 double totalPending = getTotalPendingAmount();
 
-                // Calculate fee breakdown from term assignments
                 double tuitionTotal = getTuitionFeeTotal();
                 double admissionTotal = getAdmissionFeeTotal();
                 double examinationTotal = getExaminationFeeTotal();
                 double otherTotal = getOtherFeesTotal();
 
-                // Update fields (except due date)
                 this.totalFee = totalTermFee;
                 this.paidAmount = totalPaid;
                 this.pendingAmount = totalPending;
@@ -275,46 +265,32 @@ public class Student {
                 this.examinationFee = examinationTotal;
                 this.otherFees = otherTotal;
 
-                // Update fee status based on current due date and payments
                 updateFeeStatusBasedOnCurrentDueDate();
-
             } else {
-                // If termAssignments not initialized, keep existing values or set defaults
                 this.pendingAmount = this.totalFee != null ?
                         Math.max(0, this.totalFee - (this.paidAmount != null ? this.paidAmount : 0.0)) : 0.0;
-
-                // Update status based on current due date
                 updateFeeStatusBasedOnCurrentDueDate();
             }
 
-            // Restore the preserved due date
             this.feeDueDate = preservedDueDate;
 
         } catch (Exception e) {
-            // Log error but don't throw
             System.err.println("Error calculating fee details without due date: " + e.getMessage());
         }
     }
 
-    /**
-     * Calculate fee details from term assignments
-     */
     private void calculateFeeDetails() {
         try {
-            // Only calculate if termAssignments is initialized
             if (Hibernate.isInitialized(this.termAssignments) && this.termAssignments != null) {
-                // Calculate totals from term assignments
                 double totalTermFee = getTotalFeeAmount();
                 double totalPaid = getTotalPaidAmount();
                 double totalPending = getTotalPendingAmount();
 
-                // Calculate fee breakdown from term assignments
                 double tuitionTotal = getTuitionFeeTotal();
                 double admissionTotal = getAdmissionFeeTotal();
                 double examinationTotal = getExaminationFeeTotal();
                 double otherTotal = getOtherFeesTotal();
 
-                // Update fields
                 this.totalFee = totalTermFee;
                 this.paidAmount = totalPaid;
                 this.pendingAmount = totalPending;
@@ -323,47 +299,32 @@ public class Student {
                 this.examinationFee = examinationTotal;
                 this.otherFees = otherTotal;
 
-                // ========== SMART DUE DATE MANAGEMENT ==========
-                // Update fee due date (earliest pending due date)
                 Optional<LocalDate> earliestDueDate = getEarliestPendingDueDate();
                 this.feeDueDate = earliestDueDate.orElse(null);
 
-                // Update fee status SMARTLY based on due date and payments
                 updateFeeStatusBasedOnDueDate();
-
             } else {
-                // If termAssignments not initialized, keep existing values or set defaults
                 this.pendingAmount = this.totalFee != null ?
                         Math.max(0, this.totalFee - (this.paidAmount != null ? this.paidAmount : 0.0)) : 0.0;
-
-                // Still update status based on current data
                 updateFeeStatusBasedOnDueDate();
             }
         } catch (Exception e) {
-            // Log error but don't throw - we can still function without term assignments
             System.err.println("Error calculating fee details: " + e.getMessage());
         }
     }
 
-    /**
-     * Update fee status based on due date and payment status
-     */
     private void updateFeeStatusBasedOnDueDate() {
-        // If all fees are paid, status is PAID (regardless of due date)
         if (this.pendingAmount != null && this.pendingAmount <= 0) {
             this.feeStatus = FeeStatus.PAID;
             return;
         }
 
-        // If no pending amount but no total fee either
         if (this.totalFee == null || this.totalFee <= 0) {
             this.feeStatus = FeeStatus.PAID;
             return;
         }
 
-        // Check if we have a due date
         if (this.feeDueDate == null) {
-            // No due date but has pending fees
             if (this.paidAmount != null && this.paidAmount > 0) {
                 this.feeStatus = FeeStatus.PARTIAL;
             } else {
@@ -374,17 +335,13 @@ public class Student {
 
         LocalDate today = LocalDate.now();
 
-        // Check if due date has passed
         if (today.isAfter(this.feeDueDate)) {
-            // Due date passed = OVERDUE (if there's pending amount)
             if (this.pendingAmount != null && this.pendingAmount > 0) {
                 this.feeStatus = FeeStatus.OVERDUE;
             } else {
-                // Somehow due date passed but nothing pending
                 this.feeStatus = FeeStatus.PAID;
             }
         } else {
-            // Due date not passed yet
             if (this.paidAmount != null && this.paidAmount > 0) {
                 this.feeStatus = FeeStatus.PARTIAL;
             } else {
@@ -393,25 +350,18 @@ public class Student {
         }
     }
 
-    /**
-     * Update fee status based on CURRENT due date (without recalculating due date)
-     */
     private void updateFeeStatusBasedOnCurrentDueDate() {
-        // If all fees are paid, status is PAID (regardless of due date)
         if (this.pendingAmount != null && this.pendingAmount <= 0) {
             this.feeStatus = FeeStatus.PAID;
             return;
         }
 
-        // If no pending amount but no total fee either
         if (this.totalFee == null || this.totalFee <= 0) {
             this.feeStatus = FeeStatus.PAID;
             return;
         }
 
-        // Check if we have a due date
         if (this.feeDueDate == null) {
-            // No due date but has pending fees
             if (this.paidAmount != null && this.paidAmount > 0) {
                 this.feeStatus = FeeStatus.PARTIAL;
             } else {
@@ -422,17 +372,13 @@ public class Student {
 
         LocalDate today = LocalDate.now();
 
-        // Check if due date has passed
         if (today.isAfter(this.feeDueDate)) {
-            // Due date passed = OVERDUE (if there's pending amount)
             if (this.pendingAmount != null && this.pendingAmount > 0) {
                 this.feeStatus = FeeStatus.OVERDUE;
             } else {
-                // Somehow due date passed but nothing pending
                 this.feeStatus = FeeStatus.PAID;
             }
         } else {
-            // Due date not passed yet
             if (this.paidAmount != null && this.paidAmount > 0) {
                 this.feeStatus = FeeStatus.PARTIAL;
             } else {
@@ -441,20 +387,13 @@ public class Student {
         }
     }
 
-    // ========== NEW: MANUAL DUE DATE METHODS ==========
-
-    /**
-     * Set due date manually (bypasses automatic calculation)
-     */
+    // Manual due date methods
     public void setFeeDueDateManually(LocalDate dueDate) {
         this.feeDueDate = dueDate;
         this.manualDueDateUpdate = true;
         updateFeeStatusBasedOnCurrentDueDate();
     }
 
-    /**
-     * Clear due date manually
-     */
     public void clearFeeDueDateManually() {
         this.feeDueDate = null;
         this.manualDueDateUpdate = true;
@@ -467,18 +406,11 @@ public class Student {
         }
     }
 
-    /**
-     * Update due date from term (sets manual flag)
-     */
     public void updateDueDateFromTerm(LocalDate termDueDate) {
         setFeeDueDateManually(termDueDate);
     }
 
-    // ========== HELPER METHODS FOR TERM FEE CALCULATION ==========
-
-    /**
-     * Get total fee amount across all terms
-     */
+    // Fee calculation helper methods
     public Double getTotalFeeAmount() {
         if (!Hibernate.isInitialized(this.termAssignments) || this.termAssignments == null) {
             return 0.0;
@@ -488,9 +420,6 @@ public class Student {
                 .sum();
     }
 
-    /**
-     * Get total paid amount across all terms
-     */
     public Double getTotalPaidAmount() {
         if (!Hibernate.isInitialized(this.termAssignments) || this.termAssignments == null) {
             return 0.0;
@@ -500,9 +429,6 @@ public class Student {
                 .sum();
     }
 
-    /**
-     * Get total pending amount across all terms
-     */
     public Double getTotalPendingAmount() {
         if (!Hibernate.isInitialized(this.termAssignments) || this.termAssignments == null) {
             return 0.0;
@@ -512,9 +438,6 @@ public class Student {
                 .sum();
     }
 
-    /**
-     * Get tuition fee total across all terms
-     */
     public Double getTuitionFeeTotal() {
         if (!Hibernate.isInitialized(this.termAssignments) || this.termAssignments == null) {
             return 0.0;
@@ -532,9 +455,6 @@ public class Student {
                 .sum();
     }
 
-    /**
-     * Get admission fee total across all terms
-     */
     public Double getAdmissionFeeTotal() {
         if (!Hibernate.isInitialized(this.termAssignments) || this.termAssignments == null) {
             return 0.0;
@@ -552,9 +472,6 @@ public class Student {
                 .sum();
     }
 
-    /**
-     * Get examination fee total across all terms
-     */
     public Double getExaminationFeeTotal() {
         if (!Hibernate.isInitialized(this.termAssignments) || this.termAssignments == null) {
             return 0.0;
@@ -572,9 +489,6 @@ public class Student {
                 .sum();
     }
 
-    /**
-     * Get other fees total across all terms
-     */
     public Double getOtherFeesTotal() {
         if (!Hibernate.isInitialized(this.termAssignments) || this.termAssignments == null) {
             return 0.0;
@@ -598,9 +512,6 @@ public class Student {
                 .sum();
     }
 
-    /**
-     * Get earliest pending due date from all term assignments
-     */
     public Optional<LocalDate> getEarliestPendingDueDate() {
         if (!Hibernate.isInitialized(this.termAssignments) || this.termAssignments == null) {
             return Optional.empty();
@@ -608,7 +519,6 @@ public class Student {
 
         LocalDate earliestDate = null;
 
-        // Check term assignment due dates
         for (StudentTermAssignment assignment : this.termAssignments) {
             if (assignment.getPendingAmount() > 0 && assignment.getDueDate() != null) {
                 if (earliestDate == null || assignment.getDueDate().isBefore(earliestDate)) {
@@ -616,7 +526,6 @@ public class Student {
                 }
             }
 
-            // Also check individual fee items for due dates
             if (Hibernate.isInitialized(assignment.getFeeItems())) {
                 for (var feeItem : assignment.getFeeItems()) {
                     if (feeItem.getPendingAmount() != null &&
@@ -634,9 +543,6 @@ public class Student {
         return Optional.ofNullable(earliestDate);
     }
 
-    /**
-     * Get current term assignment
-     */
     public Optional<StudentTermAssignment> getCurrentTermAssignment() {
         if (!Hibernate.isInitialized(this.termAssignments) || this.termAssignments == null) {
             return Optional.empty();
@@ -647,9 +553,6 @@ public class Student {
                 .findFirst();
     }
 
-    /**
-     * Check if student has overdue fees
-     */
     public boolean hasOverdueFees() {
         if (!Hibernate.isInitialized(this.termAssignments) || this.termAssignments == null) {
             return false;
@@ -658,9 +561,6 @@ public class Student {
                 .anyMatch(ta -> ta.getTermFeeStatus() == StudentTermAssignment.FeeStatus.OVERDUE);
     }
 
-    /**
-     * Get overdue amount
-     */
     public Double getOverdueAmount() {
         if (!Hibernate.isInitialized(this.termAssignments) || this.termAssignments == null) {
             return 0.0;
@@ -671,9 +571,6 @@ public class Student {
                 .sum();
     }
 
-    /**
-     * Get payment percentage
-     */
     public Double getPaymentPercentage() {
         if (totalFee == null || totalFee <= 0) {
             return 0.0;
@@ -681,9 +578,6 @@ public class Student {
         return (paidAmount != null ? paidAmount : 0.0) / totalFee * 100;
     }
 
-    /**
-     * Add term assignment
-     */
     public void addTermAssignment(StudentTermAssignment assignment) {
         if (Hibernate.isInitialized(this.termAssignments) && this.termAssignments != null) {
             termAssignments.add(assignment);
@@ -692,9 +586,6 @@ public class Student {
         }
     }
 
-    /**
-     * Remove term assignment
-     */
     public void removeTermAssignment(StudentTermAssignment assignment) {
         if (Hibernate.isInitialized(this.termAssignments) && this.termAssignments != null) {
             termAssignments.remove(assignment);
@@ -703,18 +594,11 @@ public class Student {
         }
     }
 
-    /**
-     * Update fee summary from term assignments (call this after payments)
-     */
     public void updateFeeSummary() {
         calculateFeeDetails();
     }
 
-    // ========== NEW HELPER METHODS FOR SMART DUE DATE MANAGEMENT ==========
-
-    /**
-     * Check if due date is overdue
-     */
+    // Due date helper methods
     @Transient
     public boolean isDueDateOverdue() {
         if (this.feeDueDate == null) return false;
@@ -723,28 +607,18 @@ public class Student {
                 this.pendingAmount > 0;
     }
 
-    /**
-     * Get days until due date (negative if overdue)
-     */
     @Transient
     public Long getDaysUntilDueDate() {
         if (this.feeDueDate == null) return null;
         return java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), this.feeDueDate);
     }
 
-    /**
-     * Get overdue days count
-     */
     @Transient
     public Long getOverdueDays() {
         if (!isDueDateOverdue()) return 0L;
         return Math.abs(getDaysUntilDueDate());
     }
 
-    /**
-     * Clear due date when all fees are paid
-     * Call this after successful payment
-     */
     public void clearDueDateIfPaid() {
         if (this.pendingAmount != null && this.pendingAmount <= 0) {
             this.feeDueDate = null;
@@ -752,97 +626,66 @@ public class Student {
         }
     }
 
-    /**
-     * Force refresh of due date and status
-     * Useful when term assignments change outside normal flow
-     */
     public void refreshFeeStatusAndDueDate() {
         calculateFeeDetails();
     }
 
-    /**
-     * Check if student needs due date update
-     */
     @Transient
     public boolean needsDueDateUpdate() {
         if (this.feeDueDate == null && (this.pendingAmount == null || this.pendingAmount <= 0)) {
-            return false; // Already cleared
+            return false;
         }
 
         Optional<LocalDate> calculatedDueDate = getEarliestPendingDueDate();
         LocalDate currentDueDate = this.feeDueDate;
 
         if (calculatedDueDate.isPresent() && currentDueDate == null) {
-            return true; // Should have a due date but doesn't
+            return true;
         }
 
         if (!calculatedDueDate.isPresent() && currentDueDate != null) {
-            return true; // Shouldn't have a due date but does
+            return true;
         }
 
         if (calculatedDueDate.isPresent() && currentDueDate != null) {
-            return !calculatedDueDate.get().equals(currentDueDate); // Dates differ
+            return !calculatedDueDate.get().equals(currentDueDate);
         }
 
         return false;
     }
 
-    /**
-     * Check if due date was manually set
-     */
     @Transient
     public boolean isDueDateManuallySet() {
         return this.manualDueDateUpdate;
     }
 
-    // ========== NEW HELPER METHODS FOR TERM ASSIGNMENTS ==========
-
-    /**
-     * Check if student has any term assignments
-     * @return true if student has term assignments, false otherwise
-     */
+    // Term assignment helper methods
     @Transient
     public Boolean getHasTermAssignments() {
         try {
-            // Check if the collection proxy is initialized
             if (!Hibernate.isInitialized(this.termAssignments)) {
-                // Collection is not initialized - return null instead of trying to initialize
                 return null;
             }
-            // Now it's safe to check
             return this.termAssignments != null && !this.termAssignments.isEmpty();
         } catch (Exception e) {
-            // Catch any exception and return null
             System.err.println("Error in getHasTermAssignments: " + e.getMessage());
             return null;
         }
     }
 
-    /**
-     * Get the count of term assignments for this student
-     * @return number of term assignments
-     */
     @Transient
     public Integer getTermAssignmentCount() {
         try {
-            // Check if the collection proxy is initialized
             if (!Hibernate.isInitialized(this.termAssignments)) {
-                // Collection is not initialized - return null instead of trying to initialize
                 return null;
             }
-            // Now it's safe to check size
             return this.termAssignments != null ? this.termAssignments.size() : 0;
         } catch (Exception e) {
-            // Catch any exception and return 0
             System.err.println("Error in getTermAssignmentCount: " + e.getMessage());
             return 0;
         }
     }
 
-    /**
-     * Get active term assignments (excluding cancelled/waived)
-     * @return count of active term assignments
-     */
     @Transient
     public Integer getActiveTermAssignmentCount() {
         try {
@@ -859,10 +702,6 @@ public class Student {
         }
     }
 
-    /**
-     * Get term assignments that are pending payment
-     * @return count of term assignments with pending/partial/overdue status
-     */
     @Transient
     public Integer getPendingTermAssignmentCount() {
         try {
@@ -880,18 +719,11 @@ public class Student {
         }
     }
 
-    /**
-     * Check if student has current term assignment
-     * @return true if student has current term assignment
-     */
     @Transient
     public Boolean getHasCurrentTermAssignment() {
         return getCurrentTermAssignment().isPresent();
     }
 
-    /**
-     * Get total pending amount across all term assignments
-     */
     @Transient
     public Double getTotalPendingFromAssignments() {
         try {
@@ -909,9 +741,6 @@ public class Student {
         }
     }
 
-    /**
-     * Get overdue term assignments
-     */
     @Transient
     public List<StudentTermAssignment> getOverdueTermAssignments() {
         try {
@@ -927,17 +756,11 @@ public class Student {
         }
     }
 
-    /**
-     * Check if student has overdue term assignments
-     */
     @Transient
     public Boolean getHasOverdueTermAssignments() {
         return !getOverdueTermAssignments().isEmpty();
     }
 
-    /**
-     * Get due date status description
-     */
     @Transient
     public String getDueDateStatus() {
         if (this.feeDueDate == null) {
@@ -957,9 +780,6 @@ public class Student {
         }
     }
 
-    /**
-     * Check if payment is urgent (due within 3 days or overdue)
-     */
     @Transient
     public boolean isPaymentUrgent() {
         if (this.feeDueDate == null) return false;
@@ -969,8 +789,7 @@ public class Student {
                 !today.plusDays(3).isBefore(this.feeDueDate);
     }
 
-    // ========== ENUMS ==========
-
+    // Enums
     public enum Gender {
         MALE, FEMALE, OTHER
     }

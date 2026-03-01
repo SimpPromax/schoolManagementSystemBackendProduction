@@ -2,10 +2,13 @@ package com.system.SchoolManagementSystem.student.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.system.SchoolManagementSystem.student.entity.Student;
+import com.system.SchoolManagementSystem.student.entity.StudentInterest;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Data
 public class StudentUpdateDTO {
@@ -69,4 +72,38 @@ public class StudentUpdateDTO {
     private Double otherFees;
     private Double paidAmount;
     private Double pendingAmount;
+
+    // Setter methods
+    // ========== ADD THESE FIELDS FOR BACKWARD COMPATIBILITY ==========
+    // These will be populated from the interests list in the controller
+    private List<String> clubs;
+    private List<String> hobbies;
+
+    // Helper methods to extract clubs and hobbies from interests
+    public List<String> getClubs() {
+        if (clubs != null) {
+            return clubs;
+        }
+        if (interests != null) {
+            return interests.stream()
+                    .filter(i -> i.getInterestType() == StudentInterest.InterestType.CLUB)
+                    .map(StudentInterestDTO::getName)
+                    .collect(Collectors.toList());
+        }
+        return new ArrayList<>();
+    }
+
+    public List<String> getHobbies() {
+        if (hobbies != null) {
+            return hobbies;
+        }
+        if (interests != null) {
+            return interests.stream()
+                    .filter(i -> i.getInterestType() == StudentInterest.InterestType.HOBBY)
+                    .map(StudentInterestDTO::getName)
+                    .collect(Collectors.toList());
+        }
+        return new ArrayList<>();
+    }
+
 }
