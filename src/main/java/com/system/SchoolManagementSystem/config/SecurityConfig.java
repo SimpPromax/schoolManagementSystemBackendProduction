@@ -18,7 +18,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -94,8 +93,19 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Allow all origins for development (restrict in production)
-        configuration.setAllowedOrigins(List.of("*"));
+        // IMPORTANT: Specify exact origins for production with credentials
+        configuration.setAllowedOrigins(Arrays.asList(
+                "http://ig-besthoodacademy.co.ke",
+                "https://ig-besthoodacademy.co.ke",
+                "http://www.ig-besthoodacademy.co.ke",
+                "https://www.ig-besthoodacademy.co.ke",
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://127.0.0.1:3000",
+                "http://192.168.100.126:5173",
+                "http://102.68.87.156",
+                "https://102.68.87.156"
+        ));
 
         // Allowed HTTP methods
         configuration.setAllowedMethods(Arrays.asList(
@@ -103,7 +113,7 @@ public class SecurityConfig {
         ));
 
         // Allowed headers
-        configuration.setAllowedHeaders(List.of(
+        configuration.setAllowedHeaders(Arrays.asList(
                 "Authorization",
                 "Content-Type",
                 "X-Requested-With",
@@ -123,7 +133,10 @@ public class SecurityConfig {
                 "X-Per-Page"
         ));
 
-        configuration.setAllowCredentials(false);
+        // CRITICAL: Allow credentials for JWT
+        configuration.setAllowCredentials(true);
+
+        // Cache preflight requests for 1 hour
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

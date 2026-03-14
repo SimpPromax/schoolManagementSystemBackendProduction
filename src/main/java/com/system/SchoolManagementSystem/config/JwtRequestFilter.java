@@ -57,6 +57,12 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        // CRITICAL: Handle OPTIONS requests immediately for CORS preflight
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            return;
+        }
+
         final String requestTokenHeader = request.getHeader("Authorization");
         String username = null;
         String jwtToken = null;
@@ -116,7 +122,6 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         response.setContentType("application/json");
         response.setStatus(status);
 
-        // Use the correct ApiResponse method
         ApiResponse<Object> errorResponse = ApiResponse.error(message);
         response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }

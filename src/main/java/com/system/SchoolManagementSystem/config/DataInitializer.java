@@ -28,7 +28,7 @@ public class DataInitializer {
 
             // List of default users to create
             List<User> defaultUsers = Arrays.asList(
-                    createUser("admin", "admin123", "ADMIN", "admin@schoolsystem.com", "System Administrator"),
+                    createUser("principal", "principal123", "ADMIN", "admin@schoolsystem.com", "System Administrator"),
                     createUser("teacher1", "teacher123", "TEACHER", "teacher1@schoolsystem.com", "John Teacher"),
                     createUser("teacher2", "teacher123", "TEACHER", "teacher2@schoolsystem.com", "Jane Teacher"),
                     createUser("student1", "student123", "STUDENT", "student1@schoolsystem.com", "Alice Student"),
