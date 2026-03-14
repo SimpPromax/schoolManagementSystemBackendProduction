@@ -1,10 +1,9 @@
 package com.system.SchoolManagementSystem.auth.service;
 
-import com.system.SchoolManagementSystem.auth.dto.BulkRejectRequest;
 import com.system.SchoolManagementSystem.auth.dto.PendingRegistrationDTO;
 import com.system.SchoolManagementSystem.auth.dto.ProcessRegistrationRequest;
 import com.system.SchoolManagementSystem.auth.dto.RegistrationStatsDTO;
-import com.system.SchoolManagementSystem.auth.entity.RegistrationStatus;
+import com.system.SchoolManagementSystem.auth.enums.RegistrationStatus;
 import com.system.SchoolManagementSystem.auth.entity.User;
 import com.system.SchoolManagementSystem.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;

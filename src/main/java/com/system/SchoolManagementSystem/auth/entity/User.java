@@ -1,5 +1,6 @@
 package com.system.SchoolManagementSystem.auth.entity;
 
+import com.system.SchoolManagementSystem.auth.enums.RegistrationStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

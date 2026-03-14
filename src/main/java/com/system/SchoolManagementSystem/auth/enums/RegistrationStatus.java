@@ -1,4 +1,4 @@
-package com.system.SchoolManagementSystem.auth.entity;
+package com.system.SchoolManagementSystem.auth.enums;
 
 public enum RegistrationStatus {
     PENDING,

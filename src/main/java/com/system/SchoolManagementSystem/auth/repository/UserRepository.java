@@ -1,6 +1,6 @@
 package com.system.SchoolManagementSystem.auth.repository;
 
-import com.system.SchoolManagementSystem.auth.entity.RegistrationStatus;
+import com.system.SchoolManagementSystem.auth.enums.RegistrationStatus;
 import com.system.SchoolManagementSystem.auth.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;

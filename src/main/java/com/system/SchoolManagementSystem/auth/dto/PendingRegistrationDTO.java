@@ -1,6 +1,6 @@
 package com.system.SchoolManagementSystem.auth.dto;
 
-import com.system.SchoolManagementSystem.auth.entity.RegistrationStatus;
+import com.system.SchoolManagementSystem.auth.enums.RegistrationStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

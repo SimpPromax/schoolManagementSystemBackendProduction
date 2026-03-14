@@ -1,7 +1,7 @@
 package com.system.SchoolManagementSystem.auth.service;
 
 import com.system.SchoolManagementSystem.auth.dto.*;
-import com.system.SchoolManagementSystem.auth.entity.RegistrationStatus;
+import com.system.SchoolManagementSystem.auth.enums.RegistrationStatus;
 import com.system.SchoolManagementSystem.auth.entity.User;
 import com.system.SchoolManagementSystem.auth.repository.UserRepository;
 import com.system.SchoolManagementSystem.config.JwtTokenUtil;
