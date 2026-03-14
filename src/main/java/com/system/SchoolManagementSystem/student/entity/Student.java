@@ -137,6 +137,7 @@ public class Student {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "transport_fee_status")
+    @Builder.Default
     private FeeStatus transportFeeStatus = FeeStatus.PENDING;
 
     // Fee Information
@@ -175,6 +176,7 @@ public class Student {
 
     // Status
     @Enumerated(EnumType.STRING)
+    @Builder.Default
     private StudentStatus status = StudentStatus.ACTIVE;
 
     // Soft delete field

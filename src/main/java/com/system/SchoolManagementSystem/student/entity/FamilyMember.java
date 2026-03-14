@@ -11,13 +11,13 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)  // Only include marked fields
-@ToString(exclude = {"student"})  // Exclude Student from toString
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString(exclude = {"student"})
 public class FamilyMember {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @EqualsAndHashCode.Include  // Only include ID in equals/hashCode
+    @EqualsAndHashCode.Include
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -37,9 +37,11 @@ public class FamilyMember {
     private String email;
 
     @Column(name = "is_primary_contact")
+    @Builder.Default
     private Boolean isPrimaryContact = false;
 
     @Column(name = "is_emergency_contact")
+    @Builder.Default
     private Boolean isEmergencyContact = false;
 
     private LocalDateTime createdAt;

@@ -45,19 +45,24 @@ public class StudentTermAssignment {
     private AcademicTerm academicTerm;
 
     @Column(name = "total_term_fee")
+    @Builder.Default
     private Double totalTermFee = 0.0;
 
     @Column(name = "paid_amount")
+    @Builder.Default
     private Double paidAmount = 0.0;
 
     @Column(name = "pending_amount")
+    @Builder.Default
     private Double pendingAmount = 0.0;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "term_fee_status", nullable = false)
+    @Builder.Default
     private FeeStatus termFeeStatus = FeeStatus.PENDING;
 
     @Column(name = "is_billed", nullable = false)
+    @Builder.Default
     private Boolean isBilled = false;
 
     @Column(name = "billing_date")
@@ -70,6 +75,7 @@ public class StudentTermAssignment {
     private LocalDate lastPaymentDate;
 
     @Column(name = "reminders_sent")
+    @Builder.Default
     private Integer remindersSent = 0;
 
     @Column(name = "last_reminder_date")

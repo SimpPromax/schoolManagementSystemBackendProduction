@@ -1,13 +1,13 @@
 package com.system.SchoolManagementSystem.auth.service;
 
 import com.system.SchoolManagementSystem.auth.dto.*;
+import com.system.SchoolManagementSystem.auth.entity.RegistrationStatus;
 import com.system.SchoolManagementSystem.auth.entity.User;
 import com.system.SchoolManagementSystem.auth.repository.UserRepository;
 import com.system.SchoolManagementSystem.config.JwtTokenUtil;
 import com.system.SchoolManagementSystem.config.RefreshTokenUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -44,6 +44,17 @@ public class AuthService {
                     log.warn("Login failed - user not found: {}", request.getUsername());
                     throw new RuntimeException("Invalid username or password");
                 });
+
+        // Check registration status
+        if (user.getRegistrationStatus() == RegistrationStatus.PENDING) {
+            log.warn("Login failed - registration pending for user: {}", request.getUsername());
+            throw new RuntimeException("Your registration is pending approval. Please check back later.");
+        }
+
+        if (user.getRegistrationStatus() == RegistrationStatus.REJECTED) {
+            log.warn("Login failed - registration rejected for user: {}", request.getUsername());
+            throw new RuntimeException("Your registration was rejected. Please contact support for more information.");
+        }
 
         // Check if account is locked
         if (!user.isAccountNonLocked()) {
@@ -141,7 +152,7 @@ public class AuthService {
             throw new RuntimeException("Invalid role specified");
         }
 
-        // Create new user
+        // Create new user with PENDING status
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
@@ -150,7 +161,8 @@ public class AuthService {
                 .phone(request.getPhone())
                 .address(request.getAddress())
                 .role(request.getRole())
-                .isEnabled(true)
+                .isEnabled(false) // Set to false initially
+                .registrationStatus(RegistrationStatus.PENDING)
                 .isAccountNonLocked(true)
                 .isAccountNonExpired(true)
                 .isCredentialsNonExpired(true)
@@ -158,7 +170,7 @@ public class AuthService {
                 .build();
 
         userRepository.save(user);
-        log.info("User registered successfully: {}", request.getUsername());
+        log.info("User registered successfully with PENDING status: {}", request.getUsername());
     }
 
     @Transactional
@@ -308,16 +320,10 @@ public class AuthService {
 
     @Transactional
     public void logout(String userId) {
-        // In a stateless JWT system, we can't invalidate tokens on the server
-        // But we can clear refresh tokens if we're storing them
-        // For now, just log the logout
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         log.info("User logged out: {}", user.getUsername());
-
-        // If storing refresh tokens in DB, you would delete them here
-        // refreshTokenRepository.deleteByUserId(userId);
     }
 
     @Transactional
@@ -354,12 +360,11 @@ public class AuthService {
     }
 
     private boolean isValidRole(String role) {
-        // Define valid roles
         return role.equals("ADMIN") ||
                 role.equals("TEACHER") ||
                 role.equals("STUDENT") ||
                 role.equals("PARENT") ||
-                role.equals("STAFF")||
-                role.equals("ACCOUNTANT"); // Added ACCOUNTANT
+                role.equals("STAFF") ||
+                role.equals("ACCOUNTANT");
     }
 }

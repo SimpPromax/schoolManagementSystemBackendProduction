@@ -37,6 +37,7 @@ public class FeeInstallment {
     private Double amount;
 
     @Column(name = "paid_amount")
+    @Builder.Default
     private Double paidAmount = 0.0;
 
     @Column(name = "due_date", nullable = false)
@@ -44,12 +45,15 @@ public class FeeInstallment {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
+    @Builder.Default
     private FeeStatus status = FeeStatus.PENDING;
 
     @Column(name = "late_fee_charged")
+    @Builder.Default
     private Double lateFeeCharged = 0.0;
 
     @Column(name = "discount_amount")
+    @Builder.Default
     private Double discountAmount = 0.0;
 
     @Column(name = "net_amount")

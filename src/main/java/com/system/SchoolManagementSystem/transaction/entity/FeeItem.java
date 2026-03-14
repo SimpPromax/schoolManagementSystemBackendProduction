@@ -36,6 +36,7 @@ public class FeeItem {
     private BigDecimal taxPercentage;
 
     @Column(name = "is_mandatory", nullable = false)
+    @Builder.Default
     private Boolean isMandatory = true;
 
     @Enumerated(EnumType.STRING)

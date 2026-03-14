@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "bank_transactions",
         indexes = {
-                @Index(name = "idx_bank_transaction_status_date", columnList = "status, transaction_date"), // Combined index
+                @Index(name = "idx_bank_transaction_status_date", columnList = "status, transaction_date"),
                 @Index(name = "idx_bank_transaction_student_status", columnList = "student_id, status"),
                 @Index(name = "idx_bank_transaction_import_batch", columnList = "import_batch_id"),
                 @Index(name = "idx_bank_transaction_bank_ref", columnList = "bank_reference", unique = true)
@@ -61,6 +61,7 @@ public class BankTransaction {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private TransactionStatus status = TransactionStatus.UNVERIFIED;
 
     @Enumerated(EnumType.STRING)
@@ -89,6 +90,7 @@ public class BankTransaction {
     private String importBatchId;
 
     @Column(name = "sms_sent", nullable = false)
+    @Builder.Default
     private Boolean smsSent = false;
 
     @Column(name = "sms_sent_at")
@@ -108,8 +110,6 @@ public class BankTransaction {
         if (paymentMethod == null) {
             paymentMethod = PaymentMethod.BANK_TRANSFER;
         }
-        if (smsSent == null) {
-            smsSent = false;
-        }
+        // smsSent already has @Builder.Default, so no need to set here
     }
 }

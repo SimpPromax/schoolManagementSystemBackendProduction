@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString(exclude = "academicTerm")
-@EqualsAndHashCode(onlyExplicitlyIncluded = true) // Add this
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class GradeTermFee {
 
     @Id
@@ -27,7 +27,7 @@ public class GradeTermFee {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "academic_term_id", nullable = false)
     @JsonBackReference
-    @EqualsAndHashCode.Include // Add this
+    @EqualsAndHashCode.Include
     private AcademicTerm academicTerm;
 
     @Column(nullable = false, length = 20)
@@ -35,40 +35,52 @@ public class GradeTermFee {
 
     // Basic Fees
     @Column(name = "tuition_fee", nullable = false)
+    @Builder.Default
     private Double tuitionFee = 0.0;
 
     @Column(name = "basic_fee", nullable = false)
+    @Builder.Default
     private Double basicFee = 0.0;
 
     @Column(name = "examination_fee")
+    @Builder.Default
     private Double examinationFee = 0.0;
 
     // Optional Fees
     @Column(name = "transport_fee")
+    @Builder.Default
     private Double transportFee = 0.0;
 
     @Column(name = "library_fee")
+    @Builder.Default
     private Double libraryFee = 0.0;
 
     @Column(name = "sports_fee")
+    @Builder.Default
     private Double sportsFee = 0.0;
 
     @Column(name = "activity_fee")
+    @Builder.Default
     private Double activityFee = 0.0;
 
     @Column(name = "hostel_fee")
+    @Builder.Default
     private Double hostelFee = 0.0;
 
     @Column(name = "uniform_fee")
+    @Builder.Default
     private Double uniformFee = 0.0;
 
     @Column(name = "book_fee")
+    @Builder.Default
     private Double bookFee = 0.0;
 
     @Column(name = "other_fees")
+    @Builder.Default
     private Double otherFees = 0.0;
 
     @Column(name = "total_fee", nullable = false)
+    @Builder.Default
     private Double totalFee = 0.0;
 
     @Column(name = "is_active", nullable = false)

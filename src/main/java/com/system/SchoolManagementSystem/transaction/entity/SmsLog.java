@@ -37,6 +37,7 @@ public class SmsLog {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private SmsStatus status = SmsStatus.PENDING;
 
     @Column(name = "gateway_response", length = 1000)

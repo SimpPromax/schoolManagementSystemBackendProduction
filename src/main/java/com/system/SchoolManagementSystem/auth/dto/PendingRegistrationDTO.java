@@ -1,6 +1,6 @@
 package com.system.SchoolManagementSystem.auth.dto;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.system.SchoolManagementSystem.auth.entity.RegistrationStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,22 +12,14 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_NULL)
-public class LoginResponse {
-
-    private String token;
-    private String refreshToken;
-    @Builder.Default
-    private String tokenType = "Bearer";
-    private Long expiresIn;
-    private LocalDateTime expiresAt;
-
+public class PendingRegistrationDTO {
     private String id;
     private String username;
     private String email;
     private String fullName;
     private String phone;
+    private String address;
     private String role;
-    private String profilePicture;
-    private LocalDateTime lastLoginAt;
+    private RegistrationStatus registrationStatus;
+    private LocalDateTime createdAt;
 }

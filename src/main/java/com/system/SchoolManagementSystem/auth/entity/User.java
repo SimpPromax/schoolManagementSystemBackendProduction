@@ -76,11 +76,9 @@ public class User implements UserDetails {
     @Builder.Default
     private Boolean isCredentialsNonExpired = true;
 
-    // Setter for isEnabled to match the field name
-    // Getter for isEnabled to match the field name
     @Column
     @Builder.Default
-    private Boolean isEnabled = true;
+    private Boolean isEnabled = false; // Changed to false by default
 
     @Column
     private LocalDateTime lastLoginAt;
@@ -89,10 +87,35 @@ public class User implements UserDetails {
     private LocalDateTime passwordChangedAt;
 
     @Column
+    @Builder.Default
     private Integer failedLoginAttempts = 0;
 
     @Column
     private LocalDateTime lockedUntil;
+
+    // NEW FIELDS FOR REGISTRATION APPROVAL
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private RegistrationStatus registrationStatus = RegistrationStatus.PENDING;
+
+    @Column(name = "approved_by")
+    private String approvedBy;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
+    @Column(name = "rejected_by")
+    private String rejectedBy;
+
+    @Column(name = "rejected_at")
+    private LocalDateTime rejectedAt;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
+    @Column(name = "registration_notes")
+    private String registrationNotes;
 
     @CreationTimestamp
     private LocalDateTime createdAt;
@@ -128,5 +151,4 @@ public class User implements UserDetails {
     public boolean isEnabled() {
         return isEnabled;
     }
-
 }
